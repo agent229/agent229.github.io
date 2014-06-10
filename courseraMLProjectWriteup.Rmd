@@ -1,0 +1,71 @@
+---
+title: "Coursera Practical ML Project Writeup"
+author: "N. Klein"
+date: "June 10, 2014"
+output: html_document
+---
+
+Model Creation Process
+----------------------------------
+After loading the testing and training data sets, I used `summary` and `str` to investigate the variables present in the data set. Because there were so many columns in the data frame, I wanted to clean the data to reduce the number of variables, taking care to process the training and testing data in the same way. 
+
+First, I decided to remove all columns that had too many `NA` values:
+```
+rmNA <- colSums(is.na(trainData)) < nrow(trainData)/2
+training <- trainData[,rmNA]; testing <- testData[,rmNA]
+```
+
+Then, I removed the columns `"user_name"`, `"raw_timestamp_part_1"`, `"raw_timestamp_part_2"`, `"cvtd_timestamp"`, `"new_window"`, and `"num_window"`, since those would not be meaningful predictors for `classe`.
+
+Finally, I removed all remianing non-numeric columns (other than `classe`) to further simplify the data set:
+```
+rmFac <- sapply(training[,-86], is.numeric)
+training <- training[,rmFac]; testing <- testing[,rmFac]
+```
+
+Next, I partitioned the given training data into two separate training sets, so that I could train my model on one set, and use the other set as a validation set before moving to the testing set. I played with the value of p and found higher p led to higher accuracy, so I used `p=0.9` on the final run.
+```
+inTrain <- createDataPartition(y=training$classe,p=0.9,list=FALSE)
+train1 <- training[inTrain,]; train2 <- training[-inTrain,]
+```
+
+For the model, I first tried usig tree and random forest models, but found that the tree accuracy was too low and the random forest took too long to generate (even when reducing the number of rows to ~3000). Therefore, I used `svm` from the `e1071` package instead because I knew it would run more quickly than a random forest and would still give good results:
+```
+model <- svm(classe ~., data=train1)
+```
+
+Estimating Out-of-Sample Accuracy
+------------------------------
+After fitting the model, I checked the in-sample accuracy on the `train1` data set:
+```
+pred <- predict(model, newdata=train1)
+sum(pred==train1$classe)/length(train1$classe)
+```
+This yielded an in-sample accuracy of 0.955894.
+
+Then, I estimated out-of-sample accuracy on the `train2` (validation) data set:
+```
+pred2 <- predict(model, newdata=train2)
+sum(pred2==train2$classe)/length(train2$classe)
+```
+This yielded an estimated out-of-sample accuracy of 0.9545918.
+
+Results on Testing Set
+-----------------------------
+
+Satisfied with the accuracy, I applied the model to the testing set, excluding the last column (`problem_id`):
+```
+predTest <- predict(model, newdata=testing[,-53])
+```
+
+Because I obtained ~95% accuracy on the validation set, I expected to missclassify one or two of the members of the testing set. However, to my surprise and delight, the model correctly predicted all 20 test set values for `classe` correctly.
+
+Potential Improvements
+-------------------------------
+The model is very simple and could certainly be improved. Some potential improvements include:
+
+- Use a more intelligent method for deciding which columns to remove and which to keep
+- Try other models and compare accuracy to svm
+- Create a stacked/blended model to obtain higher accuracy
+
+Despite my model's simplicity, I believe that it was very accurate while also being fast and easy to understand. My method for cleaning the data was a bit haphazard, but succeeded in reducing the size of the data set and the number of predictors without destroying prediction accuracy.
